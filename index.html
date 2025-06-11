@@ -138,10 +138,12 @@
 
         .status-indicator.detecting {
             background: #4CAF50;
+            border-color: #4CAF50;
         }
 
         .status-indicator.not-detecting {
             background: #FF9800;
+            border-color: #FF9800;
         }
 
         .bottom-panel {
@@ -305,7 +307,7 @@
         }
 
         .dark-mode .modal {
-            background: rgba(128,128,128,0.95);
+            background: rgba(40,40,40,0.95);
             color: white;
         }
 
@@ -367,6 +369,32 @@
             pointer-events: none;
         }
 
+        .demo-controls {
+            position: absolute;
+            bottom: 120px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 20;
+        }
+
+        .demo-btn {
+            padding: 8px 12px;
+            background: rgba(33, 150, 243, 0.9);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .demo-btn:hover {
+            background: rgba(33, 150, 243, 1);
+            transform: scale(1.05);
+        }
+
         @media (max-width: 768px) {
             .top-header {
                 padding: 15px;
@@ -384,6 +412,11 @@
             .action-btn {
                 width: 100%;
                 justify-content: center;
+            }
+
+            .demo-controls {
+                right: 10px;
+                bottom: 100px;
             }
         }
     </style>
@@ -431,6 +464,14 @@
         <div class="detection-hint" id="detection-hint">
             🔍 Search for your space
         </div>
+
+        <!-- Demo Controls -->
+        <div class="demo-controls">
+            <button class="demo-btn" onclick="app.simulateRoomDetection('tech lab')">Tech Lab</button>
+            <button class="demo-btn" onclick="app.simulateRoomDetection('library')">Library</button>
+            <button class="demo-btn" onclick="app.simulateRoomDetection('theater')">Theater</button>
+            <button class="demo-btn" onclick="app.simulateRoomDetection(null)">Clear</button>
+        </div>
     </div>
 
     <div class="modal-overlay" id="modal-overlay">
@@ -455,9 +496,10 @@
                 this.isDetecting = false;
                 this.detectionConfidence = 0;
                 this.lastDetectedRoom = null;
-                this.requiredConfidence = 3;
+                this.requiredConfidence = 2;
                 this.speechSynthesis = window.speechSynthesis;
                 this.currentUtterance = null;
+                this.detectionInterval = null;
 
                 this.roomData = {
                     'tech lab': {
@@ -530,7 +572,7 @@
                         activitiesEn: 'Book clubs, study groups, research assistance, literature discussions, exam preparation',
                         activitiesAr: 'نوادي الكتب، مجموعات الدراسة، المساعدة البحثية، مناقشات الأدب، التحضير للامتحانات'
                     },
-                    'the theater': {
+                    'theater': {
                         nameEn: 'The Theater',
                         nameAr: 'المسرح',
                         descriptionEn: 'A performance space equipped for theatrical productions, presentations, and cultural performances',
@@ -581,6 +623,9 @@
                 this.updateUI();
                 await this.startCamera();
                 this.startTextDetection();
+                
+                // Show detection hint initially
+                document.getElementById('detection-hint').classList.add('visible');
             }
 
             setupEventListeners() {
@@ -596,47 +641,78 @@
 
             async startCamera() {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'environment' }
-                    });
-                    document.getElementById('camera-feed').srcObject = stream;
+                    const constraints = {
+                        video: { 
+                            facingMode: 'environment',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    };
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    const videoElement = document.getElementById('camera-feed');
+                    videoElement.srcObject = stream;
+                    
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play();
+                        console.log('Camera started successfully');
+                    };
+                    
                 } catch (error) {
                     console.error('Error accessing camera:', error);
-                    // Fallback for demo purposes
-                    document.getElementById('detection-hint').classList.add('visible');
+                    // Create a placeholder for demo
+                    this.createCameraPlaceholder();
                 }
             }
 
-            startTextDetection() {
-                // Simulate text detection for demo
-                // In a real implementation, you would use:
-                // - OCR libraries like Tesseract.js
-                // - Google Vision API
-                // - Azure Computer Vision
-                // - AWS Textract
-                
-                this.simulateDetection();
+            createCameraPlaceholder() {
+                const videoContainer = document.getElementById('video-container');
+                videoContainer.innerHTML = `
+                    <div style="
+                        width: 100%;
+                        height: 100%;
+                        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 2rem;
+                        color: white;
+                        text-align: center;
+                    ">
+                        📱<br>
+                        Camera Demo Mode<br>
+                        <small style="font-size: 1rem; opacity: 0.8;">Use demo buttons to test room detection</small>
+                    </div>
+                `;
             }
 
-            simulateDetection() {
-                // Demo simulation - randomly detect rooms
+            startTextDetection() {
+                // Start automatic detection simulation
+                this.detectionInterval = setInterval(() => {
+                    this.simulateAutoDetection();
+                }, 3000);
+            }
+
+            simulateAutoDetection() {
+                // Simulate random room detection for demo
                 const rooms = Object.keys(this.roomData);
-                let detectionIndex = 0;
+                const shouldDetect = Math.random() > 0.6; // 40% chance
                 
-                setInterval(() => {
-                    // Simulate detection cycle
-                    if (Math.random() > 0.7) { // 30% chance of detection
-                        const room = rooms[detectionIndex % rooms.length];
-                        this.processDetectedText(room);
-                        detectionIndex++;
-                    } else {
-                        this.processDetectedText(null);
-                    }
-                }, 2000);
+                if (shouldDetect && !this.currentRoom) {
+                    const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
+                    this.processDetectedText(randomRoom);
+                } else if (!shouldDetect && this.currentRoom) {
+                    this.processDetectedText(null);
+                }
+            }
+
+            simulateRoomDetection(roomKey) {
+                // Manual room detection for demo buttons
+                this.processDetectedText(roomKey);
             }
 
             processDetectedText(detectedRoom) {
-                if (detectedRoom) {
+                if (detectedRoom && this.roomData[detectedRoom]) {
                     if (detectedRoom === this.lastDetectedRoom) {
                         this.detectionConfidence++;
                     } else {
@@ -649,6 +725,7 @@
                     }
                 } else {
                     this.detectionConfidence = 0;
+                    this.lastDetectedRoom = null;
                     if (this.currentRoom) {
                         this.deactivateRoom();
                     }
@@ -663,16 +740,16 @@
                 this.isDetecting = true;
                 this.updateRoomInfo(roomInfo);
                 
-                // Auto-speak after delay
-                setTimeout(() => {
-                    this.speakRoom();
-                }, 1500);
+                console.log(`Activated room: ${roomKey}`);
             }
 
             deactivateRoom() {
                 this.currentRoom = null;
                 this.isDetecting = false;
                 this.hideRoomPanel();
+                this.stopSpeech();
+                
+                console.log('Deactivated room');
             }
 
             updateRoomInfo(roomInfo) {
@@ -698,88 +775,18 @@
 
             toggleLanguage() {
                 this.currentLanguage = this.currentLanguage === 'english' ? 'arabic' : 'english';
-                document.body.className = document.body.className.replace(/english|arabic/, this.currentLanguage);
+                
+                // Update body classes
+                document.body.classList.remove('english', 'arabic');
+                document.body.classList.add(this.currentLanguage);
+                
+                // Update language button
+                document.getElementById('language-btn').textContent = this.currentLanguage === 'english' ? 'عر' : 'EN';
+                
                 this.updateUI();
                 
                 if (this.currentRoom) {
                     this.updateRoomInfo(this.roomData[this.currentRoom]);
                 }
-            }
-
-            toggleTheme() {
-                this.isDarkMode = !this.isDarkMode;
-                document.body.className = document.body.className.replace(/light-mode|dark-mode/, 
-                    this.isDarkMode ? 'dark-mode' : 'light-mode');
-                this.updateUI();
-            }
-
-            toggleSpeech() {
-                if (this.isSpeaking) {
-                    this.stopSpeech();
-                } else {
-                    this.speakRoom();
-                }
-            }
-
-            speakRoom() {
-                if (!this.currentRoom) return;
-
-                const roomInfo = this.roomData[this.currentRoom];
-                const isArabic = this.currentLanguage === 'arabic';
-
-                let text;
-                if (isArabic) {
-                    text = `مرحباً بك في ${roomInfo.nameAr}. ${roomInfo.descriptionAr} القواعد هي: ${roomInfo.rulesAr} الأنشطة الحالية: ${roomInfo.activitiesAr}`;
-                } else {
-                    text = `Welcome to ${roomInfo.nameEn}. ${roomInfo.descriptionEn} Rules are: ${roomInfo.rulesEn} Current activities: ${roomInfo.activitiesEn}`;
-                }
-
-                this.currentUtterance = new SpeechSynthesisUtterance(text);
-                this.currentUtterance.lang = isArabic ? 'ar-SA' : 'en-US';
-                this.currentUtterance.rate = isArabic ? 0.7 : 0.8;
-
-                this.currentUtterance.onend = () => {
-                    this.isSpeaking = false;
-                    this.updateSpeechButton();
-                };
-
-                this.currentUtterance.onerror = () => {
-                    this.isSpeaking = false;
-                    this.updateSpeechButton();
-                };
-
-                this.isSpeaking = true;
-                this.updateSpeechButton();
-                this.speechSynthesis.speak(this.currentUtterance);
-            }
-
-            stopSpeech() {
-                this.speechSynthesis.cancel();
-                this.isSpeaking = false;
-                this.updateSpeechButton();
-            }
-
-            updateSpeechButton() {
-                const btn = document.getElementById('speak-btn');
-                const text = document.getElementById('speak-text');
-                const t = this.translations[this.currentLanguage];
-
-                if (this.isSpeaking) {
-                    btn.classList.add('speaking');
-                    text.textContent = t.stop;
-                } else {
-                    btn.classList.remove('speaking');
-                    text.textContent = t.listen;
-                }
-            }
-
-            showDetails() {
-                if (!this.currentRoom) return;
-
-                const roomInfo = this.roomData[this.currentRoom];
-                const isArabic = this.currentLanguage === 'arabic';
-                const t = this.translations[this.currentLanguage];
-
-                const modalContent = document.getElementById('modal-content');
-                modalContent.innerHTML = `
-                    <div class="detail-row">
+                
+                console.log(`Language switched to
