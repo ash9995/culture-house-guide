@@ -390,32 +390,6 @@
             z-index: 5;
             pointer-events: none;
         }
-
-        @media (max-width: 768px) {
-            .top-header {
-                padding: 15px;
-            }
-            
-            .header-info h1 {
-                font-size: 1.3rem;
-            }
-            
-            .control-buttons {
-                flex-direction: column;
-                gap: 8px;
-            }
-            
-            .action-btn {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .demo-controls {
-                left: 10px;
-                right: 10px;
-                width: auto;
-            }
-        }
     </style>
 </head>
 <body class="light-mode english">
@@ -473,6 +447,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1"></script>
     <script>
         class CultureHouseGuide {
             constructor() {
@@ -483,13 +458,13 @@
                 this.isDetecting = false;
                 this.detectionConfidence = 0;
                 this.lastDetectedRoom = null;
-                this.requiredConfidence = 1; 
+                this.requiredConfidence = 1;
                 this.speechSynthesis = window.speechSynthesis;
                 this.currentUtterance = null;
                 this.cameraActive = false;
 
                 this.roomData = {
-                    // Define rooms here...
+                    // Define your rooms here
                 };
 
                 this.translations = {
@@ -556,6 +531,7 @@
 
                     videoElement.addEventListener('loadedmetadata', () => {
                         console.log('Camera initialized successfully');
+                        this.startTextDetection();
                     });
 
                 } catch (error) {
@@ -570,6 +546,81 @@
                 errorDiv.className = 'camera-error';
                 errorDiv.innerHTML = '📹 Camera Access Required. Please allow camera access and refresh the page.';
                 videoContainer.appendChild(errorDiv);
+            }
+
+            startTextDetection() {
+                const videoElement = document.getElementById('camera-feed');
+                const canvas = document.getElementById('detection-canvas');
+                const context = canvas.getContext('2d');
+
+                const detectText = () => {
+                    // Draw the current frame to the canvas
+                    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                    // Use Tesseract.js to recognize text
+                    Tesseract.recognize(
+                        canvas, 
+                        'eng', // Language for OCR
+                        {
+                            logger: (m) => console.log(m) // Optionally log OCR process
+                        }
+                    ).then(({ data: { text } }) => {
+                        console.log('Detected Text: ', text);
+                        // Process the detected text here
+                        this.processDetectedText(text);
+                    });
+
+                    // Repeat detection every 3 seconds
+                    setTimeout(detectText, 3000);
+                };
+
+                detectText();
+            }
+
+            processDetectedText(text) {
+                // Logic for processing the recognized text goes here
+                // For example, detect a room based on text
+                const rooms = Object.keys(this.roomData);
+                for (const room of rooms) {
+                    if (text.toLowerCase().includes(room)) {
+                        console.log(`Detected Room: ${room}`);
+                        this.activateRoom(room);
+                        break;
+                    }
+                }
+            }
+
+            activateRoom(roomKey) {
+                const roomInfo = this.roomData[roomKey];
+                if (!roomInfo) return;
+
+                this.currentRoom = roomKey;
+                this.isDetecting = true;
+                this.updateRoomInfo(roomInfo);
+
+                // Auto-speak after delay
+                setTimeout(() => {
+                    this.speakRoom();
+                }, 1000);
+            }
+
+            updateRoomInfo(roomInfo) {
+                const isArabic = this.currentLanguage === 'arabic';
+                document.getElementById('room-name').textContent = isArabic ? roomInfo.nameAr : roomInfo.nameEn;
+                document.getElementById('room-description').textContent = isArabic ? roomInfo.descriptionAr : roomInfo.descriptionEn;
+                this.showRoomPanel();
+            }
+
+            showRoomPanel() {
+                document.getElementById('room-panel').classList.add('visible');
+                document.getElementById('detection-hint').classList.remove('visible');
+                document.getElementById('status-indicator').className = 'status-indicator detecting';
+            }
+
+            hideRoomPanel() {
+                document.getElementById('room-panel').classList.remove('visible');
+                document.getElementById('detection-hint').classList.add('visible');
+                document.getElementById('status-indicator').className = 'status-indicator not-detecting';
             }
 
             toggleLanguage() {
