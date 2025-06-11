@@ -161,6 +161,11 @@
             border-color: #FF9800;
         }
 
+        .status-indicator.processing {
+            background: #2196F3;
+            border-color: #2196F3;
+        }
+
         @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -309,6 +314,54 @@
             z-index: 5;
             pointer-events: none;
         }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .dark-mode .modal {
+            background: #333;
+            color: white;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="light-mode english">
@@ -381,12 +434,14 @@
                 this.speechSynthesis = window.speechSynthesis;
                 this.currentUtterance = null;
                 this.cameraActive = false;
+                this.detectionActive = false;
+                this.detectionInterval = null;
 
                 this.roomData = {
                     "tech lab": { nameEn: "Tech Lab", nameAr: "مساحة التقنية", descriptionEn: "An advanced technical laboratory equipped with the latest technologies for learning and innovation", descriptionAr: "مختبر تقني متقدم مجهز بأحدث التقنيات للتعلم والابتكار" },
                     "library": { nameEn: "Digital Library", nameAr: "المكتبة الرقمية", descriptionEn: "A modern library containing a wide collection of books and digital references", descriptionAr: "مكتبة حديثة تحتوي على مجموعة واسعة من الكتب والمراجع الرقمية" },
                     "exhibition": { nameEn: "Exhibition Hall", nameAr: "قاعة المعارض", descriptionEn: "A space for displaying artworks, cultural items, and innovations", descriptionAr: "مساحة لعرض الأعمال الفنية والثقافية والابتكارات" },
-                    "culture house manager": { nameEn: "Culture House Manager Office", nameAr: "غرفة مدير بيت الثقافة", descriptionEn: "The manager's office responsible for coordinating cultural and administrative activities within the culture house", descriptionAr: "غرفة المدير المسؤول عن تنسيق الأنشطة الثقافية والإدارية داخل بيت الثقافة" },
+                    "culture house manager": { nameEn: "Culture House Manager", nameAr: "مدير بيت الثقافة", descriptionEn: "The manager's office responsible for coordinating cultural and administrative activities within the culture house", descriptionAr: "غرفة المدير المسؤول عن تنسيق الأنشطة الثقافية والإدارية داخل بيت الثقافة" },
                     "innovation space": { nameEn: "Innovation Space", nameAr: "مساحة الابتكار", descriptionEn: "A creative space designed for brainstorming, prototyping, and developing innovative ideas and projects", descriptionAr: "مساحة إبداعية مصممة للعصف الذهني والنماذج الأولية وتطوير الأفكار والمشاريع المبتكرة" },
                     "children space": { nameEn: "Children Space", nameAr: "مساحة الطفل", descriptionEn: "A safe and fun space specially designed for children's activities, learning, and play", descriptionAr: "مساحة آمنة وممتعة مصممة خصيصاً لأنشطة الأطفال والتعلم واللعب" },
                     "youth library": { nameEn: "Youth Library", nameAr: "مكتبة اليافعين", descriptionEn: "A modern library specifically designed for young adults and teenagers with relevant books and resources", descriptionAr: "مكتبة حديثة مصممة خصيصاً للشباب والمراهقين مع الكتب والموارد ذات الصلة" },
@@ -445,7 +500,7 @@
                 });
             }
 
-             async startCamera() {
+            async startCamera() {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({
                         video: { facingMode: 'environment' }
@@ -457,12 +512,29 @@
 
                     videoElement.addEventListener('loadedmetadata', () => {
                         console.log('Camera initialized successfully');
+                        this.setupCanvas();
+                        this.startTextDetection();
                     });
 
                 } catch (error) {
                     console.error('Error accessing camera:', error);
                     this.showCameraError(error);
                 }
+            }
+
+            setupCanvas() {
+                const videoElement = document.getElementById('camera-feed');
+                const canvas = document.getElementById('detection-canvas');
+                
+                // Set canvas size to match video
+                canvas.width = videoElement.videoWidth || 640;
+                canvas.height = videoElement.videoHeight || 480;
+                
+                // Update canvas size when video loads
+                videoElement.addEventListener('loadeddata', () => {
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                });
             }
 
             showCameraError(error) {
@@ -474,44 +546,98 @@
             }
 
             startTextDetection() {
+                if (this.detectionActive) return;
+                
+                this.detectionActive = true;
                 const videoElement = document.getElementById('camera-feed');
                 const canvas = document.getElementById('detection-canvas');
                 const context = canvas.getContext('2d');
 
-                const detectText = () => {
-                    // Draw the current frame to the canvas
-                    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                const detectText = async () => {
+                    if (!this.detectionActive) return;
 
-                    // Use Tesseract.js to recognize text
-                    Tesseract.recognize(
-                        canvas, 
-                        'eng', // Language for OCR
-                        {
-                            logger: (m) => console.log(m) // Optionally log OCR process
+                    try {
+                        // Update status to processing
+                        document.getElementById('status-indicator').className = 'status-indicator processing';
+                        
+                        // Ensure canvas matches video dimensions
+                        if (canvas.width !== videoElement.videoWidth || canvas.height !== videoElement.videoHeight) {
+                            canvas.width = videoElement.videoWidth || 640;
+                            canvas.height = videoElement.videoHeight || 480;
                         }
-                    ).then(({ data: { text } }) => {
-                        console.log('Detected Text: ', text);
-                        // Process the detected text here
-                        this.processDetectedText(text);
-                    });
 
-                    // Repeat detection every 3 seconds
+                        // Draw the current frame to the canvas
+                        context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                        // Use Tesseract.js to recognize text with improved settings
+                        const { data: { text } } = await Tesseract.recognize(
+                            canvas,
+                            'eng+ara', // Support both English and Arabic
+                            {
+                                logger: m => {
+                                    if (m.status === 'recognizing text') {
+                                        console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+                                    }
+                                },
+                                tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ',
+                                tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT
+                            }
+                        );
+
+                        console.log('Detected Text:', text);
+                        this.processDetectedText(text);
+
+                    } catch (error) {
+                        console.error('OCR Error:', error);
+                    }
+
+                    // Reset status indicator
+                    if (!this.currentRoom) {
+                        document.getElementById('status-indicator').className = 'status-indicator not-detecting';
+                    }
+
+                    // Continue detection every 3 seconds
                     setTimeout(detectText, 3000);
                 };
 
-                detectText();
+                // Start detection after a short delay
+                setTimeout(detectText, 1000);
             }
 
             processDetectedText(text) {
-                // Logic for processing the recognized text goes here
-                // For example, detect a room based on text
+                if (!text || text.trim().length === 0) return;
+
+                const normalizedText = text.toLowerCase().trim();
+                console.log('Processing text:', normalizedText);
+
+                // Check for room matches with improved matching
                 const rooms = Object.keys(this.roomData);
+                let bestMatch = null;
+                let bestScore = 0;
+
                 for (const room of rooms) {
-                    if (text.toLowerCase().includes(room)) {
-                        console.log(`Detected Room: ${room}`);
-                        this.activateRoom(room);
-                        break;
+                    const roomWords = room.split(' ');
+                    let matchScore = 0;
+
+                    // Check if all words of the room name are found in the detected text
+                    for (const word of roomWords) {
+                        if (normalizedText.includes(word.toLowerCase())) {
+                            matchScore += 1;
+                        }
                     }
+
+                    // Calculate match percentage
+                    const matchPercentage = matchScore / roomWords.length;
+
+                    if (matchPercentage > bestScore && matchPercentage >= 0.7) { // Require 70% match
+                        bestScore = matchPercentage;
+                        bestMatch = room;
+                    }
+                }
+
+                if (bestMatch && bestMatch !== this.currentRoom) {
+                    console.log(`Room detected: ${bestMatch} (confidence: ${Math.round(bestScore * 100)}%)`);
+                    this.activateRoom(bestMatch);
                 }
             }
 
@@ -525,8 +651,10 @@
 
                 // Auto-speak after a delay
                 setTimeout(() => {
-                    this.speakRoom();
-                }, 1000);
+                    if (this.currentRoom === roomKey) { // Only speak if still the current room
+                        this.speakRoom();
+                    }
+                }, 1500);
             }
 
             updateRoomInfo(roomInfo) {
@@ -546,6 +674,7 @@
                 document.getElementById('room-panel').classList.remove('visible');
                 document.getElementById('detection-hint').classList.add('visible');
                 document.getElementById('status-indicator').className = 'status-indicator not-detecting';
+                this.currentRoom = null;
             }
 
             toggleLanguage() {
@@ -553,42 +682,118 @@
                 document.body.classList.remove('english', 'arabic');
                 document.body.classList.add(this.currentLanguage);
                 this.updateUI();
+                
+                // Update current room info if displayed
+                if (this.currentRoom) {
+                    this.updateRoomInfo(this.roomData[this.currentRoom]);
+                }
             }
 
             toggleTheme() {
                 this.isDarkMode = !this.isDarkMode;
                 document.body.classList.toggle('dark-mode', this.isDarkMode);
                 document.body.classList.toggle('light-mode', !this.isDarkMode);
+                this.updateThemeButton();
+            }
+
+            updateThemeButton() {
+                document.getElementById('theme-btn').textContent = this.isDarkMode ? '☀️' : '🌙';
             }
 
             updateUI() {
                 const t = this.translations[this.currentLanguage];
                 document.getElementById('app-title').textContent = t.appTitle;
                 document.getElementById('app-subtitle').textContent = t.appSubtitle;
-                document.getElementById('speak-text').textContent = t.listen;
+                document.getElementById('speak-text').textContent = this.isSpeaking ? t.stop : t.listen;
                 document.getElementById('details-text').textContent = t.moreDetails;
+                document.getElementById('detection-hint').textContent = t.searchHint;
+                document.getElementById('modal-title').textContent = t.detailedInfo;
+                document.getElementById('close-modal').textContent = t.close;
+            }
+
+            toggleSpeech() {
+                if (this.isSpeaking) {
+                    this.stopSpeech();
+                } else {
+                    this.speakRoom();
+                }
             }
 
             speakRoom() {
+                if (!this.currentRoom) return;
+
                 const roomInfo = this.roomData[this.currentRoom];
                 if (!roomInfo) return;
+
+                // Stop any current speech
+                this.stopSpeech();
 
                 const speech = new SpeechSynthesisUtterance();
                 const isArabic = this.currentLanguage === 'arabic';
 
-                // Set the speech text based on the current language
                 speech.text = isArabic 
                     ? `مرحباً بك في ${roomInfo.nameAr}. ${roomInfo.descriptionAr}`
                     : `Welcome to ${roomInfo.nameEn}. ${roomInfo.descriptionEn}`;
 
-                // Set the voice language (use appropriate language code for Arabic and English)
                 speech.lang = isArabic ? 'ar-SA' : 'en-US';
+                speech.rate = 0.9;
+                speech.pitch = 1;
 
-                // Speak the text
+                speech.onstart = () => {
+                    this.isSpeaking = true;
+                    document.getElementById('speak-btn').classList.add('speaking');
+                    this.updateUI();
+                };
+
+                speech.onend = () => {
+                    this.isSpeaking = false;
+                    document.getElementById('speak-btn').classList.remove('speaking');
+                    this.updateUI();
+                };
+
+                speech.onerror = () => {
+                    this.isSpeaking = false;
+                    document.getElementById('speak-btn').classList.remove('speaking');
+                    this.updateUI();
+                };
+
+                this.currentUtterance = speech;
                 window.speechSynthesis.speak(speech);
+            }
+
+            stopSpeech() {
+                if (this.currentUtterance) {
+                    window.speechSynthesis.cancel();
+                    this.currentUtterance = null;
+                }
+                this.isSpeaking = false;
+                document.getElementById('speak-btn').classList.remove('speaking');
+                this.updateUI();
+            }
+
+            showDetails() {
+                if (!this.currentRoom) return;
+
+                const roomInfo = this.roomData[this.currentRoom];
+                const isArabic = this.currentLanguage === 'arabic';
+                const t = this.translations[this.currentLanguage];
+
+                const content = `
+                    <h3>${t.roomName}: ${isArabic ? roomInfo.nameAr : roomInfo.nameEn}</h3>
+                    <p><strong>${t.description}:</strong></p>
+                    <p>${isArabic ? roomInfo.descriptionAr : roomInfo.descriptionEn}</p>
+                `;
+
+                document.getElementById('modal-content').innerHTML = content;
+                document.getElementById('modal-overlay').classList.add('visible');
+            }
+
+            hideDetails() {
+                document.getElementById('modal-overlay').classList.remove('visible');
             }
         }
 
+        // Initialize the app
         const app = new CultureHouseGuide();
     </script>
 </body>
