@@ -447,6 +447,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1"></script>
     <script>
         class CultureHouseGuide {
             constructor() {
@@ -461,6 +462,7 @@
                 this.speechSynthesis = window.speechSynthesis;
                 this.currentUtterance = null;
                 this.cameraActive = false;
+                this.stream = null;
 
                 this.roomData = {
                     // Define your rooms here
@@ -518,37 +520,246 @@
                 });
             }
 
-          async startCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: 'environment',
-                width: { ideal: 1280 }, // Set ideal width for HD
-                height: { ideal: 720 }   // Set ideal height for HD
+            async startCamera() {
+                try {
+                    // Stop existing stream if any
+                    if (this.stream) {
+                        this.stream.getTracks().forEach(track => track.stop());
+                    }
+
+                    // Request HD camera with optimal settings
+                    const constraints = {
+                        video: {
+                            facingMode: 'environment',
+                            width: { ideal: 1920, min: 1280 },
+                            height: { ideal: 1080, min: 720 },
+                            frameRate: { ideal: 30, min: 15 },
+                            aspectRatio: { ideal: 16/9 }
+                        },
+                        audio: false
+                    };
+
+                    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    const videoElement = document.getElementById('camera-feed');
+                    const canvas = document.getElementById('detection-canvas');
+                    
+                    videoElement.srcObject = this.stream;
+                    this.cameraActive = true;
+
+                    // Wait for video metadata to load
+                    await new Promise((resolve) => {
+                        videoElement.addEventListener('loadedmetadata', () => {
+                            // Set canvas dimensions to match video
+                            canvas.width = videoElement.videoWidth;
+                            canvas.height = videoElement.videoHeight;
+                            
+                            console.log(`Camera initialized: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+                            resolve();
+                        }, { once: true });
+                    });
+
+                    // Start text detection after camera is ready
+                    this.startTextDetection();
+
+                } catch (error) {
+                    console.error('Error accessing camera:', error);
+                    this.showCameraError(error);
+                }
             }
-        });
-
-        const videoElement = document.getElementById('camera-feed');
-        videoElement.srcObject = stream;
-        this.cameraActive = true;
-
-        videoElement.addEventListener('loadedmetadata', () => {
-            videoElement.play(); // Ensure video plays smoothly
-            console.log('Camera initialized successfully');
-        });
-
-    } catch (error) {
-        console.error('Error accessing camera:', error);
-        this.showCameraError(error);
-    }
-}
 
             showCameraError(error) {
                 const videoContainer = document.getElementById('video-container');
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'camera-error';
-                errorDiv.innerHTML = '📹 Camera Access Required. Please allow camera access and refresh the page.';
+                
+                let errorMessage = '📹 Camera Access Required';
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = '📹 Camera permission denied. Please allow camera access and refresh.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = '📹 No camera found. Please connect a camera and refresh.';
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = '📹 Camera is being used by another application.';
+                }
+                
+                errorDiv.innerHTML = errorMessage;
                 videoContainer.appendChild(errorDiv);
+            }
+
+            startTextDetection() {
+                const videoElement = document.getElementById('camera-feed');
+                const canvas = document.getElementById('detection-canvas');
+                const context = canvas.getContext('2d');
+
+                let isProcessing = false;
+
+                const detectText = () => {
+                    if (isProcessing || !this.cameraActive || videoElement.paused) {
+                        setTimeout(detectText, 1000);
+                        return;
+                    }
+
+                    isProcessing = true;
+
+                    try {
+                        // Ensure canvas matches current video dimensions
+                        if (canvas.width !== videoElement.videoWidth || canvas.height !== videoElement.videoHeight) {
+                            canvas.width = videoElement.videoWidth;
+                            canvas.height = videoElement.videoHeight;
+                        }
+
+                        // Draw the current frame to the canvas with high quality
+                        context.imageSmoothingEnabled = true;
+                        context.imageSmoothingQuality = 'high';
+                        context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                        // Use Tesseract.js to recognize text with optimized settings
+                        Tesseract.recognize(
+                            canvas, 
+                            'eng+ara', // Support both English and Arabic
+                            {
+                                logger: m => {
+                                    if (m.status === 'recognizing text') {
+                                        console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+                                    }
+                                }
+                            }
+                        ).then(({ data: { text, confidence } }) => {
+                            console.log('Detected Text:', text.trim());
+                            console.log('Confidence:', confidence);
+                            
+                            if (confidence > 60 && text.trim()) {
+                                this.processDetectedText(text.trim());
+                            }
+                            
+                            isProcessing = false;
+                        }).catch(error => {
+                            console.error('OCR Error:', error);
+                            isProcessing = false;
+                        });
+                    } catch (error) {
+                        console.error('Detection Error:', error);
+                        isProcessing = false;
+                    }
+
+                    // Schedule next detection
+                    setTimeout(detectText, 2000);
+                };
+
+                // Start detection when video is playing
+                if (videoElement.readyState >= 2) {
+                    detectText();
+                } else {
+                    videoElement.addEventListener('canplay', detectText, { once: true });
+                }
+            }
+
+            processDetectedText(text) {
+                // Logic for processing the recognized text goes here
+                // For example, detect a room based on text
+                const rooms = Object.keys(this.roomData);
+                for (const room of rooms) {
+                    if (text.toLowerCase().includes(room.toLowerCase())) {
+                        console.log(`Detected Room: ${room}`);
+                        this.activateRoom(room);
+                        break;
+                    }
+                }
+            }
+
+            activateRoom(roomKey) {
+                const roomInfo = this.roomData[roomKey];
+                if (!roomInfo) return;
+
+                this.currentRoom = roomKey;
+                this.isDetecting = true;
+                this.updateRoomInfo(roomInfo);
+
+                // Auto-speak after delay
+                setTimeout(() => {
+                    this.speakRoom();
+                }, 1000);
+            }
+
+            updateRoomInfo(roomInfo) {
+                const isArabic = this.currentLanguage === 'arabic';
+                document.getElementById('room-name').textContent = isArabic ? roomInfo.nameAr : roomInfo.nameEn;
+                document.getElementById('room-description').textContent = isArabic ? roomInfo.descriptionAr : roomInfo.descriptionEn;
+                this.showRoomPanel();
+            }
+
+            showRoomPanel() {
+                document.getElementById('room-panel').classList.add('visible');
+                document.getElementById('detection-hint').classList.remove('visible');
+                document.getElementById('status-indicator').className = 'status-indicator detecting';
+            }
+
+            hideRoomPanel() {
+                document.getElementById('room-panel').classList.remove('visible');
+                document.getElementById('detection-hint').classList.add('visible');
+                document.getElementById('status-indicator').className = 'status-indicator not-detecting';
+            }
+
+            toggleLanguage() {
+                this.currentLanguage = this.currentLanguage === 'english' ? 'arabic' : 'english';
+                document.body.classList.remove('english', 'arabic');
+                document.body.classList.add(this.currentLanguage);
+                this.updateUI();
+            }
+
+            toggleTheme() {
+                this.isDarkMode = !this.isDarkMode;
+                document.body.classList.toggle('dark-mode', this.isDarkMode);
+                document.body.classList.toggle('light-mode', !this.isDarkMode);
+            }
+
+            updateUI() {
+                const t = this.translations[this.currentLanguage];
+                document.getElementById('app-title').textContent = t.appTitle;
+                document.getElementById('app-subtitle').textContent = t.appSubtitle;
+                document.getElementById('speak-text').textContent = t.listen;
+                document.getElementById('details-text').textContent = t.moreDetails;
+            }
+
+            updateThemeButton() {
+                // This method was referenced in the original code
+                const themeBtn = document.getElementById('theme-btn');
+                themeBtn.textContent = this.isDarkMode ? '☀️' : '🌙';
+            }
+
+            toggleSpeech() {
+                // Placeholder for speech functionality
+                if (this.isSpeaking) {
+                    this.stopSpeaking();
+                } else {
+                    this.speakRoom();
+                }
+            }
+
+            speakRoom() {
+                // Placeholder for speaking functionality
+                console.log('Speaking room description...');
+                this.isSpeaking = true;
+                const speakBtn = document.getElementById('speak-btn');
+                speakBtn.classList.add('speaking');
+                
+                // Simulate speech duration
+                setTimeout(() => {
+                    this.stopSpeaking();
+                }, 3000);
+            }
+
+            stopSpeaking() {
+                this.isSpeaking = false;
+                const speakBtn = document.getElementById('speak-btn');
+                speakBtn.classList.remove('speaking');
+            }
+
+            showDetails() {
+                document.getElementById('modal-overlay').classList.add('visible');
+            }
+
+            hideDetails() {
+                document.getElementById('modal-overlay').classList.remove('visible');
             }
         }
 
