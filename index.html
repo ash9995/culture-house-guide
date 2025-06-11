@@ -5,464 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Culture House Guide</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-
-        body.dark-mode {
-            background-color: #1a1a1a;
-            color: #fff;
-        }
-
-        body.light-mode {
-            background-color: #fff;
-            color: #000;
-        }
-
-        body.arabic {
-            direction: rtl;
-        }
-
-        body.english {
-            direction: ltr;
-        }
-
-        #video-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
-            background: #000;
-        }
-
-        #camera-feed {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .camera-error {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            color: white;
-            font-size: 1.2rem;
-            padding: 20px;
-            background: rgba(0,0,0,0.8);
-            border-radius: 10px;
-        }
-
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 10;
-            pointer-events: none;
-        }
-
-        .overlay > * {
-            pointer-events: auto;
-        }
-
-        .top-header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            padding: 20px;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-
-        .dark-mode .top-header {
-            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
-        }
-
-        .light-mode .top-header {
-            background: linear-gradient(to bottom, rgba(255,255,255,0.9), transparent);
-        }
-
-        .header-info h1 {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-
-        .header-info p {
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-
-        .controls {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        .control-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .dark-mode .control-btn {
-            background: rgba(255,255,255,0.2);
-            color: white;
-        }
-
-        .light-mode .control-btn {
-            background: rgba(0,0,0,0.2);
-            color: white;
-        }
-
-        .control-btn:hover {
-            transform: scale(1.1);
-        }
-
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid white;
-            animation: pulse 2s infinite;
-        }
-
-        .status-indicator.detecting {
-            background: #4CAF50;
-            border-color: #4CAF50;
-        }
-
-        .status-indicator.not-detecting {
-            background: #FF9800;
-            border-color: #FF9800;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-
-        .bottom-panel {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            margin: 20px;
-            padding: 20px;
-            border-radius: 16px;
-            backdrop-filter: blur(15px);
-            transform: translateY(100%);
-            transition: transform 0.3s ease;
-        }
-
-        .bottom-panel.visible {
-            transform: translateY(0);
-        }
-
-        .dark-mode .bottom-panel {
-            background: rgba(0,0,0,0.8);
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-
-        .light-mode .bottom-panel {
-            background: rgba(255,255,255,0.9);
-            border: 1px solid rgba(0,0,0,0.3);
-        }
-
-        .room-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .room-info .icon {
-            font-size: 1.2rem;
-        }
-
-        .room-info h2 {
-            font-size: 1.3rem;
-            font-weight: 600;
-        }
-
-        .room-description {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .room-description .icon {
-            font-size: 1.2rem;
-            margin-top: 2px;
-        }
-
-        .room-description p {
-            font-size: 1rem;
-            line-height: 1.4;
-            opacity: 0.9;
-        }
-
-        .control-buttons {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            border-radius: 20px;
-            border: none;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .speak-btn {
-            background: #2196F3;
-            color: white;
-        }
-
-        .speak-btn.speaking {
-            background: #F44336;
-        }
-
-        .details-btn {
-            color: inherit;
-        }
-
-        .dark-mode .details-btn {
-            background: rgba(255,255,255,0.2);
-        }
-
-        .light-mode .details-btn {
-            background: rgba(0,0,0,0.2);
-            color: white;
-        }
-
-        .action-btn:hover {
-            transform: scale(1.05);
-        }
-
-        .detection-hint {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 16px 24px;
-            border-radius: 10px;
-            font-size: 1.1rem;
-            text-align: center;
-            backdrop-filter: blur(10px);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .detection-hint.visible {
-            opacity: 1;
-        }
-
-        .dark-mode .detection-hint {
-            background: rgba(0,0,0,0.8);
-            color: white;
-        }
-
-        .light-mode .detection-hint {
-            background: rgba(255,255,255,0.8);
-            color: black;
-        }
-
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0,0,0,0.5);
-            z-index: 50;
-            display: none;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-overlay.visible {
-            display: flex;
-        }
-
-        .modal {
-            background: white;
-            margin: 20px;
-            padding: 24px;
-            border-radius: 20px;
-            max-width: 500px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-        }
-
-        .dark-mode .modal {
-            background: #2a2a2a;
-            color: white;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .modal-header h2 {
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-
-        .close-btn {
-            background: none;
-            border: none;
-            color: #2196F3;
-            font-size: 1rem;
-            cursor: pointer;
-            padding: 4px 8px;
-        }
-
-        .detail-row {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            margin-bottom: 16px;
-            padding: 8px 0;
-        }
-
-        .detail-row .icon {
-            font-size: 1.2rem;
-            color: #2196F3;
-            margin-top: 2px;
-            min-width: 20px;
-        }
-
-        .detail-content h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .detail-content p {
-            font-size: 1rem;
-            line-height: 1.4;
-            opacity: 0.8;
-        }
-
-        .canvas-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 5;
-            pointer-events: none;
-        }
-
-        .demo-controls {
-            position: absolute;
-            top: 100px;
-            left: 20px;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
-            font-size: 0.9rem;
-        }
-
-        .demo-controls h3 {
-            margin-bottom: 10px;
-        }
-
-        .demo-controls button {
-            display: block;
-            width: 100%;
-            margin: 5px 0;
-            padding: 8px;
-            border: none;
-            border-radius: 5px;
-            background: #2196F3;
-            color: white;
-            cursor: pointer;
-        }
-
-        .demo-controls button:hover {
-            background: #1976D2;
-        }
-
-        @media (max-width: 768px) {
-            .top-header {
-                padding: 15px;
-            }
-            
-            .header-info h1 {
-                font-size: 1.3rem;
-            }
-            
-            .control-buttons {
-                flex-direction: column;
-                gap: 8px;
-            }
-            
-            .action-btn {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .demo-controls {
-                left: 10px;
-                right: 10px;
-                width: auto;
-            }
-        }
+        /* Your existing styles */
     </style>
 </head>
 <body class="light-mode english">
     <div id="video-container">
         <video id="camera-feed" autoplay muted playsinline></video>
         <canvas id="detection-canvas" class="canvas-overlay"></canvas>
-    </div>
-
-    <!-- Demo Controls -->
-    <div class="demo-controls">
-        <h3>🎮 Demo Controls</h3>
-        <button onclick="app.demoDetectRoom('tech lab')">Detect Tech Lab</button>
-        <button onclick="app.demoDetectRoom('library')">Detect Library</button>
-        <button onclick="app.demoDetectRoom('exhibition')">Detect Exhibition</button>
-        <button onclick="app.demoDetectRoom('innovation space')">Detect Innovation Space</button>
-        <button onclick="app.demoDetectRoom(null)">Clear Detection</button>
     </div>
 
     <div class="overlay">
@@ -510,9 +59,7 @@
                 <h2 id="modal-title">Detailed Information</h2>
                 <button class="close-btn" id="close-modal">Close</button>
             </div>
-            <div id="modal-content">
-                <!-- Detail rows will be inserted here -->
-            </div>
+            <div id="modal-content"></div>
         </div>
     </div>
 
@@ -526,92 +73,13 @@
                 this.isDetecting = false;
                 this.detectionConfidence = 0;
                 this.lastDetectedRoom = null;
-                this.requiredConfidence = 1; // Reduced for demo
+                this.requiredConfidence = 1; 
                 this.speechSynthesis = window.speechSynthesis;
                 this.currentUtterance = null;
                 this.cameraActive = false;
 
                 this.roomData = {
-                    'tech lab': {
-                        nameEn: 'Tech Lab',
-                        nameAr: 'مساحة التقنية',
-                        descriptionEn: 'An advanced technical laboratory equipped with the latest technologies for learning and innovation',
-                        descriptionAr: 'مختبر تقني متقدم مجهز بأحدث التقنيات للتعلم والابتكار',
-                        rulesEn: 'Please maintain equipment and cleanliness, no food or drinks near devices',
-                        rulesAr: 'يرجى الحفاظ على الأجهزة ونظافة المكان، لا تأكل أو تشرب بالقرب من الأجهزة',
-                        activitiesEn: 'Programming workshops, AI courses, student technical projects',
-                        activitiesAr: 'ورش البرمجة، دورات الذكاء الاصطناعي، مشاريع الطلاب التقنية'
-                    },
-                    'library': {
-                        nameEn: 'Digital Library',
-                        nameAr: 'المكتبة الرقمية',
-                        descriptionEn: 'A modern library containing a wide collection of books and digital references',
-                        descriptionAr: 'مكتبة حديثة تحتوي على مجموعة واسعة من الكتب والمراجع الرقمية',
-                        rulesEn: 'Maintain complete silence, return books to their designated places',
-                        rulesAr: 'الحفاظ على الهدوء التام، إعادة الكتب لأماكنها المخصصة',
-                        activitiesEn: 'Silent reading sessions, weekly book club, academic research',
-                        activitiesAr: 'جلسات القراءة الصامتة، نادي الكتاب الأسبوعي، البحث الأكاديمي'
-                    },
-                    'exhibition': {
-                        nameEn: 'Exhibition Hall',
-                        nameAr: 'قاعة المعارض',
-                        descriptionEn: 'A space for displaying artworks, cultural items, and innovations',
-                        descriptionAr: 'مساحة لعرض الأعمال الفنية والثقافية والابتكارات',
-                        rulesEn: 'Do not touch exhibits, photography allowed without flash',
-                        rulesAr: 'عدم لمس المعروضات، التصوير مسموح بدون فلاش',
-                        activitiesEn: 'Monthly exhibitions, art shows, student project displays',
-                        activitiesAr: 'معارض شهرية، عروض فنية، معارض المشاريع الطلابية'
-                    },
-                    'culture house manager': {
-                        nameEn: 'Culture House Manager Office',
-                        nameAr: 'غرفة مدير بيت الثقافة',
-                        descriptionEn: 'The manager\'s office responsible for coordinating cultural and administrative activities within the culture house',
-                        descriptionAr: 'غرفة المدير المسؤول عن تنسيق الأنشطة الثقافية والإدارية داخل بيت الثقافة',
-                        rulesEn: 'Please respect the manager\'s privacy and do not enter without prior permission',
-                        rulesAr: 'يرجى احترام خصوصية المدير وعدم الدخول إلا بإذن مسبق',
-                        activitiesEn: 'Managing and organizing cultural events, coordination meetings, monitoring current projects',
-                        activitiesAr: 'إدارة وتنظيم الفعاليات الثقافية، الاجتماعات التنسيقية، متابعة المشاريع الحالية'
-                    },
-                    'innovation space': {
-                        nameEn: 'Innovation Space',
-                        nameAr: 'مساحة الابتكار',
-                        descriptionEn: 'A creative space designed for brainstorming, prototyping, and developing innovative ideas and projects',
-                        descriptionAr: 'مساحة إبداعية مصممة للعصف الذهني والنماذج الأولية وتطوير الأفكار والمشاريع المبتكرة',
-                        rulesEn: 'Collaborate respectfully, clean up after use, share resources fairly, respect others\' work',
-                        rulesAr: 'التعاون باحترام، تنظيف المكان بعد الاستخدام، مشاركة الموارد بعدالة، احترام أعمال الآخرين',
-                        activitiesEn: 'Innovation workshops, startup incubation, design thinking sessions, maker projects',
-                        activitiesAr: 'ورش الابتكار، حاضنة الشركات الناشئة، جلسات التفكير التصميمي، مشاريع المصنعين'
-                    },
-                    'children space': {
-                        nameEn: 'Children Space',
-                        nameAr: 'مساحة الطفل',
-                        descriptionEn: 'A safe and fun space specially designed for children\'s activities, learning, and play',
-                        descriptionAr: 'مساحة آمنة وممتعة مصممة خصيصاً لأنشطة الأطفال والتعلم واللعب',
-                        rulesEn: 'Adult supervision required, age-appropriate activities only, maintain cleanliness and safety',
-                        rulesAr: 'يتطلب إشراف البالغين، أنشطة مناسبة للعمر فقط، الحفاظ على النظافة والأمان',
-                        activitiesEn: 'Storytelling sessions, educational games, art and craft activities, children\'s workshops',
-                        activitiesAr: 'جلسات القصص، الألعاب التعليمية، أنشطة الفن والحرف، ورش الأطفال'
-                    },
-                    'youth library': {
-                        nameEn: 'Youth Library',
-                        nameAr: 'مكتبة اليافعين',
-                        descriptionEn: 'A modern library specifically designed for young adults and teenagers with relevant books and resources',
-                        descriptionAr: 'مكتبة حديثة مصممة خصيصاً للشباب والمراهقين مع الكتب والموارد ذات الصلة',
-                        rulesEn: 'Maintain quiet atmosphere, return materials on time, respect study spaces, no food or drinks',
-                        rulesAr: 'الحفاظ على الأجواء الهادئة، إعادة المواد في الوقت المحدد، احترام أماكن الدراسة، ممنوع الطعام والشراب',
-                        activitiesEn: 'Book clubs, study groups, research assistance, literature discussions, exam preparation',
-                        activitiesAr: 'نوادي الكتب، مجموعات الدراسة، المساعدة البحثية، مناقشات الأدب، التحضير للامتحانات'
-                    },
-                    'the theater': {
-                        nameEn: 'The Theater',
-                        nameAr: 'المسرح',
-                        descriptionEn: 'A performance space equipped for theatrical productions, presentations, and cultural performances',
-                        descriptionAr: 'مساحة أداء مجهزة للإنتاجات المسرحية والعروض التقديمية والعروض الثقافية',
-                        rulesEn: 'No noise during performances, turn off mobile devices, arrive on time, respect performers',
-                        rulesAr: 'عدم إحداث ضوضاء أثناء العروض، إغلاق الأجهزة المحمولة، الوصول في الوقت المحدد، احترام المؤدين',
-                        activitiesEn: 'Drama performances, cultural shows, presentations, music concerts, community events',
-                        activitiesAr: 'العروض الدرامية، العروض الثقافية، العروض التقديمية، الحفلات الموسيقية، الفعاليات المجتمعية'
-                    }
+                    // Define rooms here...
                 };
 
                 this.translations = {
@@ -669,21 +137,17 @@
             async startCamera() {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { 
-                            facingMode: 'environment',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
+                        video: { facingMode: 'environment' }
                     });
-                    
+
                     const videoElement = document.getElementById('camera-feed');
                     videoElement.srcObject = stream;
                     this.cameraActive = true;
-                    
+
                     videoElement.addEventListener('loadedmetadata', () => {
                         console.log('Camera initialized successfully');
                     });
-                    
+
                 } catch (error) {
                     console.error('Error accessing camera:', error);
                     this.showCameraError(error);
@@ -694,98 +158,33 @@
                 const videoContainer = document.getElementById('video-container');
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'camera-error';
-                
-                let errorMessage = '📹 Camera Access Required';
-                if (error.name === 'NotAllowedError') {
-                    errorMessage += '<br>Please allow camera access and refresh the page';
-                } else if (error.name === 'NotFoundError') {
-                    errorMessage += '<br>No camera found on this device';
-                } else {
-                    errorMessage += '<br>Unable to access camera. Using demo mode.';
-                }
-                
-                errorDiv.innerHTML = errorMessage;
+                errorDiv.innerHTML = '📹 Camera Access Required. Please allow camera access and refresh the page.';
                 videoContainer.appendChild(errorDiv);
-            }
-
-            // Demo function to simulate room detection
-            demoDetectRoom(roomKey) {
-                if (roomKey) {
-                    this.processDetectedText(roomKey);
-                } else {
-                    this.currentRoom = null;
-                    this.isDetecting = false;
-                    this.hideRoomPanel();
-                }
-            }
-
-            processDetectedText(detectedRoom) {
-                if (detectedRoom) {
-                    if (detectedRoom === this.lastDetectedRoom) {
-                        this.detectionConfidence++;
-                    } else {
-                        this.lastDetectedRoom = detectedRoom;
-                        this.detectionConfidence = 1;
-                    }
-
-                    if (this.detectionConfidence >= this.requiredConfidence && this.currentRoom !== detectedRoom) {
-                        this.activateRoom(detectedRoom);
-                    }
-                } else {
-                    this.detectionConfidence = 0;
-                    if (this.currentRoom) {
-                        this.deactivateRoom();
-                    }
-                }
-            }
-
-            activateRoom(roomKey) {
-                const roomInfo = this.roomData[roomKey];
-                if (!roomInfo) return;
-
-                this.currentRoom = roomKey;
-                this.isDetecting = true;
-                this.updateRoomInfo(roomInfo);
-                
-                // Auto-speak after delay
-                setTimeout(() => {
-                    if (this.currentRoom === roomKey) { // Only speak if still the same room
-                        this.speakRoom();
-                    }
-                }, 1000);
-            }
-
-            deactivateRoom() {
-                this.currentRoom = null;
-                this.isDetecting = false;
-                this.stopSpeech(); // Stop any ongoing speech
-                this.hideRoomPanel();
-            }
-
-            updateRoomInfo(roomInfo) {
-                const isArabic = this.currentLanguage === 'arabic';
-                
-                document.getElementById('room-name').textContent = isArabic ? roomInfo.nameAr : roomInfo.nameEn;
-                document.getElementById('room-description').textContent = isArabic ? roomInfo.descriptionAr : roomInfo.descriptionEn;
-                
-                this.showRoomPanel();
-            }
-
-            showRoomPanel() {
-                document.getElementById('room-panel').classList.add('visible');
-                document.getElementById('detection-hint').classList.remove('visible');
-                document.getElementById('status-indicator').className = 'status-indicator detecting';
-            }
-
-            hideRoomPanel() {
-                document.getElementById('room-panel').classList.remove('visible');
-                document.getElementById('detection-hint').classList.add('visible');
-                document.getElementById('status-indicator').className = 'status-indicator not-detecting';
             }
 
             toggleLanguage() {
                 this.currentLanguage = this.currentLanguage === 'english' ? 'arabic' : 'english';
-                
-                // Update body classes
                 document.body.classList.remove('english', 'arabic');
                 document.body.classList.add(this.currentLanguage);
+                this.updateUI();
+            }
+
+            toggleTheme() {
+                this.isDarkMode = !this.isDarkMode;
+                document.body.classList.toggle('dark-mode', this.isDarkMode);
+                document.body.classList.toggle('light-mode', !this.isDarkMode);
+            }
+
+            updateUI() {
+                const t = this.translations[this.currentLanguage];
+                document.getElementById('app-title').textContent = t.appTitle;
+                document.getElementById('app-subtitle').textContent = t.appSubtitle;
+                document.getElementById('speak-text').textContent = t.listen;
+                document.getElementById('details-text').textContent = t.moreDetails;
+            }
+        }
+
+        const app = new CultureHouseGuide();
+    </script>
+</body>
+</html>
