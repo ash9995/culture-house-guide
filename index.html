@@ -462,7 +462,6 @@
                 this.speechSynthesis = window.speechSynthesis;
                 this.currentUtterance = null;
                 this.cameraActive = false;
-                this.stream = null;
 
                 this.roomData = {
                     // Define your rooms here
@@ -522,44 +521,17 @@
 
             async startCamera() {
                 try {
-                    // Stop existing stream if any
-                    if (this.stream) {
-                        this.stream.getTracks().forEach(track => track.stop());
-                    }
-
-                    // Request HD camera with optimal settings
-                    const constraints = {
-                        video: {
-                            facingMode: 'environment',
-                            width: { ideal: 1920, min: 1280 },
-                            height: { ideal: 1080, min: 720 },
-                            frameRate: { ideal: 30, min: 15 },
-                            aspectRatio: { ideal: 16/9 }
-                        },
-                        audio: false
-                    };
-
-                    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-                    const videoElement = document.getElementById('camera-feed');
-                    const canvas = document.getElementById('detection-canvas');
-                    
-                    videoElement.srcObject = this.stream;
-                    this.cameraActive = true;
-
-                    // Wait for video metadata to load
-                    await new Promise((resolve) => {
-                        videoElement.addEventListener('loadedmetadata', () => {
-                            // Set canvas dimensions to match video
-                            canvas.width = videoElement.videoWidth;
-                            canvas.height = videoElement.videoHeight;
-                            
-                            console.log(`Camera initialized: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
-                            resolve();
-                        }, { once: true });
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }
                     });
 
-                    // Start text detection after camera is ready
-                    this.startTextDetection();
+                    const videoElement = document.getElementById('camera-feed');
+                    videoElement.srcObject = stream;
+                    this.cameraActive = true;
+
+                    videoElement.addEventListener('loadedmetadata', () => {
+                        console.log('Camera initialized successfully');
+                    });
 
                 } catch (error) {
                     console.error('Error accessing camera:', error);
@@ -571,17 +543,7 @@
                 const videoContainer = document.getElementById('video-container');
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'camera-error';
-                
-                let errorMessage = '📹 Camera Access Required';
-                if (error.name === 'NotAllowedError') {
-                    errorMessage = '📹 Camera permission denied. Please allow camera access and refresh.';
-                } else if (error.name === 'NotFoundError') {
-                    errorMessage = '📹 No camera found. Please connect a camera and refresh.';
-                } else if (error.name === 'NotReadableError') {
-                    errorMessage = '📹 Camera is being used by another application.';
-                }
-                
-                errorDiv.innerHTML = errorMessage;
+                errorDiv.innerHTML = '📹 Camera Access Required. Please allow camera access and refresh the page.';
                 videoContainer.appendChild(errorDiv);
             }
 
@@ -590,67 +552,28 @@
                 const canvas = document.getElementById('detection-canvas');
                 const context = canvas.getContext('2d');
 
-                let isProcessing = false;
-
                 const detectText = () => {
-                    if (isProcessing || !this.cameraActive || videoElement.paused) {
-                        setTimeout(detectText, 1000);
-                        return;
-                    }
+                    // Draw the current frame to the canvas
+                    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-                    isProcessing = true;
-
-                    try {
-                        // Ensure canvas matches current video dimensions
-                        if (canvas.width !== videoElement.videoWidth || canvas.height !== videoElement.videoHeight) {
-                            canvas.width = videoElement.videoWidth;
-                            canvas.height = videoElement.videoHeight;
+                    // Use Tesseract.js to recognize text
+                    Tesseract.recognize(
+                        canvas, 
+                        'eng', // Language for OCR
+                        {
+                            logger: (m) => console.log(m) // Optionally log OCR process
                         }
+                    ).then(({ data: { text } }) => {
+                        console.log('Detected Text: ', text);
+                        // Process the detected text here
+                        this.processDetectedText(text);
+                    });
 
-                        // Draw the current frame to the canvas with high quality
-                        context.imageSmoothingEnabled = true;
-                        context.imageSmoothingQuality = 'high';
-                        context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-
-                        // Use Tesseract.js to recognize text with optimized settings
-                        Tesseract.recognize(
-                            canvas, 
-                            'eng+ara', // Support both English and Arabic
-                            {
-                                logger: m => {
-                                    if (m.status === 'recognizing text') {
-                                        console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
-                                    }
-                                }
-                            }
-                        ).then(({ data: { text, confidence } }) => {
-                            console.log('Detected Text:', text.trim());
-                            console.log('Confidence:', confidence);
-                            
-                            if (confidence > 60 && text.trim()) {
-                                this.processDetectedText(text.trim());
-                            }
-                            
-                            isProcessing = false;
-                        }).catch(error => {
-                            console.error('OCR Error:', error);
-                            isProcessing = false;
-                        });
-                    } catch (error) {
-                        console.error('Detection Error:', error);
-                        isProcessing = false;
-                    }
-
-                    // Schedule next detection
-                    setTimeout(detectText, 2000);
+                    // Repeat detection every 3 seconds
+                    setTimeout(detectText, 3000);
                 };
 
-                // Start detection when video is playing
-                if (videoElement.readyState >= 2) {
-                    detectText();
-                } else {
-                    videoElement.addEventListener('canplay', detectText, { once: true });
-                }
+                detectText();
             }
 
             processDetectedText(text) {
@@ -658,7 +581,7 @@
                 // For example, detect a room based on text
                 const rooms = Object.keys(this.roomData);
                 for (const room of rooms) {
-                    if (text.toLowerCase().includes(room.toLowerCase())) {
+                    if (text.toLowerCase().includes(room)) {
                         console.log(`Detected Room: ${room}`);
                         this.activateRoom(room);
                         break;
@@ -719,51 +642,9 @@
                 document.getElementById('speak-text').textContent = t.listen;
                 document.getElementById('details-text').textContent = t.moreDetails;
             }
-
-            updateThemeButton() {
-                // This method was referenced in the original code
-                const themeBtn = document.getElementById('theme-btn');
-                themeBtn.textContent = this.isDarkMode ? '☀️' : '🌙';
-            }
-
-            toggleSpeech() {
-                // Placeholder for speech functionality
-                if (this.isSpeaking) {
-                    this.stopSpeaking();
-                } else {
-                    this.speakRoom();
-                }
-            }
-
-            speakRoom() {
-                // Placeholder for speaking functionality
-                console.log('Speaking room description...');
-                this.isSpeaking = true;
-                const speakBtn = document.getElementById('speak-btn');
-                speakBtn.classList.add('speaking');
-                
-                // Simulate speech duration
-                setTimeout(() => {
-                    this.stopSpeaking();
-                }, 3000);
-            }
-
-            stopSpeaking() {
-                this.isSpeaking = false;
-                const speakBtn = document.getElementById('speak-btn');
-                speakBtn.classList.remove('speaking');
-            }
-
-            showDetails() {
-                document.getElementById('modal-overlay').classList.add('visible');
-            }
-
-            hideDetails() {
-                document.getElementById('modal-overlay').classList.remove('visible');
-            }
         }
 
         const app = new CultureHouseGuide();
     </script>
 </body>
-</html>
+</html> fix the camera I need it to work smoothly and HD 
