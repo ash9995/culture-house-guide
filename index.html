@@ -519,26 +519,30 @@
                 });
             }
 
-            async startCamera() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'environment' }
-                    });
-
-                    const videoElement = document.getElementById('camera-feed');
-                    videoElement.srcObject = stream;
-                    this.cameraActive = true;
-
-                    videoElement.addEventListener('loadedmetadata', () => {
-                        console.log('Camera initialized successfully');
-                        this.startTextDetection();
-                    });
-
-                } catch (error) {
-                    console.error('Error accessing camera:', error);
-                    this.showCameraError(error);
-                }
+           async startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+                facingMode: 'environment', 
+                width: { ideal: 1920 },  // Higher width for better resolution
+                height: { ideal: 1080 }  // Higher height for better resolution
             }
+        });
+
+        const videoElement = document.getElementById('camera-feed');
+        videoElement.srcObject = stream;
+        this.cameraActive = true;
+
+        videoElement.addEventListener('loadedmetadata', () => {
+            console.log('Camera initialized successfully');
+            this.startTextDetection(); // Start text detection after initializing the camera
+        });
+
+    } catch (error) {
+        console.error('Error accessing camera:', error);
+        this.showCameraError(error);
+    }
+}
 
             showCameraError(error) {
                 const videoContainer = document.getElementById('video-container');
