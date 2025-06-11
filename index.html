@@ -518,40 +518,30 @@
                 });
             }
 
-            async startCamera() {
-                try {
-                    // Requesting Full HD video (1920x1080) with 30 fps
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'environment',
-                            width: { ideal: 1920 },  // Full HD resolution
-                            height: { ideal: 1080 }, // Full HD
-                            frameRate: { ideal: 30 } // 30 frames per second for smooth performance
-                        }
-                    });
-
-                    const videoElement = document.getElementById('camera-feed');
-                    videoElement.srcObject = stream;
-                    this.cameraActive = true;
-
-                    // Wait for the video to load and adjust canvas size accordingly
-                    videoElement.addEventListener('loadedmetadata', () => {
-                        console.log('Camera initialized successfully');
-                        
-                        // Resize the canvas to match the video resolution
-                        const canvas = document.getElementById('detection-canvas');
-                        canvas.width = videoElement.videoWidth;
-                        canvas.height = videoElement.videoHeight;
-
-                        // Start the text detection after the video metadata is loaded
-                        this.startTextDetection();
-                    });
-
-                } catch (error) {
-                    console.error('Error accessing camera:', error);
-                    this.showCameraError(error);
-                }
+          async startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment',
+                width: { ideal: 1280 }, // Set ideal width for HD
+                height: { ideal: 720 }   // Set ideal height for HD
             }
+        });
+
+        const videoElement = document.getElementById('camera-feed');
+        videoElement.srcObject = stream;
+        this.cameraActive = true;
+
+        videoElement.addEventListener('loadedmetadata', () => {
+            videoElement.play(); // Ensure video plays smoothly
+            console.log('Camera initialized successfully');
+        });
+
+    } catch (error) {
+        console.error('Error accessing camera:', error);
+        this.showCameraError(error);
+    }
+}
 
             showCameraError(error) {
                 const videoContainer = document.getElementById('video-container');
